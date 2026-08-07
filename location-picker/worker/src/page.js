@@ -43,6 +43,8 @@ export const PAGE = `<!doctype html>
 <div id="map"></div>
 <div id="info">Loading...</div>
 <div class="opts">
+  <label style="flex:1;min-width:140px">Lat, Lng<input id="coord" placeholder="35.46436,139.62461" style="width:100%"></label>
+  <button id="jumpbtn" type="button" style="padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#007aff;color:#fff">Go</button>
   <label>Altitude (m)<input id="alt" type="number" inputmode="numeric"></label>
   <label>H. Accuracy<input id="hacc" type="number" inputmode="numeric"></label>
   <label>V. Accuracy<input id="vacc" type="number" inputmode="numeric"></label>
@@ -250,8 +252,42 @@ function movePin(dispLat,dispLng){
   WGS={lat:w[0], lng:wrapLng(w[1])};
   saved=false;
   marker.setLatLng([dispLat,dispLng]);
+  if(document.activeElement !== $("coord")){
+    $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
+  }
   info();
   fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
+}
+
+function setWgsLocation(lat,lng){
+  lat=Number(lat);
+  lng=wrapLng(Number(lng));
+  if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<-90||lat>90||lng<-180||lng>180){
+    toast("Invalid lat,lng (e.g. 35.46436,139.62461)");
+    return false;
+  }
+  WGS={lat:lat,lng:lng};
+  saved=false;
+  var p=dispPos();
+  marker.setLatLng(p);
+  map.setView(p,15);
+  $("coord").value=WGS.lat.toFixed(5)+","+WGS.lng.toFixed(5);
+  info();
+  fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
+  toast("Moved to "+WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5));
+  return true;
+}
+
+function jumpToCoord(raw){
+  var str = (raw != null ? String(raw) : $("coord").value).trim();
+  if(!str) return false;
+  str = str.replace(/^["'\s(]+|["'\s)]+$/g, '');
+  var parts = str.split(/[,;\s\/]+/);
+  if(parts.length < 2) return false;
+  var lat = Number(parts[0]);
+  var lng = Number(parts[1]);
+  if(isNaN(lat) || isNaN(lng)) return false;
+  return setWgsLocation(lat, lng);
 }
 
 function commit(){
@@ -306,6 +342,10 @@ function locateCurrent(){
 
 function search(){
   var q=$("q").value.trim(); if(!q) return;
+  if(jumpToCoord(q)){
+    $("results").classList.remove("show");
+    return;
+  }
   fetch("https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=8&q="+encodeURIComponent(q))
     .then(function(r){return r.json();})
     .then(function(a){
@@ -354,6 +394,7 @@ function load(){
     L.control.layers({"Amap Map":amapVec,"Amap Satellite":amapSat,"OSM Map":osm},null,{collapsed:false}).addTo(map);
 
     marker=L.marker(dispPos(),{draggable:true}).addTo(map);
+    $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
     updateEnabledUI();
     setLocateBusy(false);
 
@@ -365,6 +406,8 @@ function load(){
 
 $("btn").addEventListener("click",search);
 $("q").addEventListener("keydown",function(e){if(e.key==="Enter")search();});
+$("jumpbtn").addEventListener("click",function(){if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");});
+$("coord").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");}});
 $("locatebtn").addEventListener("click",locateCurrent);
 $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);

@@ -31,12 +31,12 @@ const TOKEN = process.env.TOKEN || "";
 if (!TOKEN) {
   console.error(
     "启动失败：未设置 TOKEN 环境变量。请用随机字符串启动，例如：\n" +
-    "  TOKEN=$(openssl rand -hex 24) PORT=8080 node server.js"
+      "  TOKEN=$(openssl rand -hex 24) PORT=8080 node server.js",
   );
   process.exit(1);
 }
-const CERT = process.env.CERT || "";                   // https 证书 fullchain 路径（留空=http）
-const KEY = process.env.KEY || "";                     // https 私钥路径
+const CERT = process.env.CERT || ""; // https 证书 fullchain 路径（留空=http）
+const KEY = process.env.KEY || ""; // https 私钥路径
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "loc.json");
 
 // 常量时间比较，避免通过响应时延逐字节爆破 token
@@ -51,12 +51,12 @@ function safeEqual(a, b) {
 
 // 字段名/默认值与 location-spoofer.js 的 DEFAULT_CONFIG 对齐
 const DEFAULT = {
-  enabled: true,          // false = 脚本放行原始响应（恢复真实定位）
+  enabled: true, // false = 脚本放行原始响应（恢复真实定位）
   latitude: 37.3349,
   longitude: -122.00902,
   altitude: 530,
   horizontalAccuracy: 39,
-  verticalAccuracy: 1000
+  verticalAccuracy: 1000,
 };
 
 function readLoc() {
@@ -75,7 +75,7 @@ function send(res, code, type, body) {
   res.writeHead(code, {
     "Content-Type": type,
     "Access-Control-Allow-Origin": "*",
-    "Cache-Control": "no-store"
+    "Cache-Control": "no-store",
   });
   res.end(body);
 }
@@ -83,7 +83,12 @@ function send(res, code, type, body) {
 // 区分「没传 token」和「token 传错」：前者 401 引导补 ?token=，后者 403
 function checkToken(token, res) {
   if (token == null || token === "") {
-    send(res, 401, "application/json", '{"error":"missing token","hint":"add ?token=<TOKEN> to the URL (must match the TOKEN env var)"}');
+    send(
+      res,
+      401,
+      "application/json",
+      '{"error":"missing token","hint":"add ?token=<TOKEN> to the URL (must match the TOKEN env var)"}',
+    );
     return false;
   }
   if (!safeEqual(token, TOKEN)) {
@@ -117,8 +122,12 @@ function handler(req, res) {
         const la = Number(j.lat);
         const lo = Number(j.lng);
         if (
-          !isFinite(la) || !isFinite(lo) ||
-          la < -90 || la > 90 || lo < -180 || lo > 180
+          !isFinite(la) ||
+          !isFinite(lo) ||
+          la < -90 ||
+          la > 90 ||
+          lo < -180 ||
+          lo > 180
         ) {
           return send(res, 400, "application/json", '{"error":"bad coords"}');
         }
@@ -128,7 +137,12 @@ function handler(req, res) {
         cur.longitude = lo;
         // 海拔/精度：脚本里都会被 Math.trunc 成整数，这里取整存
         function setInt(key, v) {
-          if (v !== undefined && v !== null && v !== "" && isFinite(Number(v))) {
+          if (
+            v !== undefined &&
+            v !== null &&
+            v !== "" &&
+            isFinite(Number(v))
+          ) {
             cur[key] = Math.round(Number(v));
           }
         }
@@ -178,9 +192,15 @@ function handler(req, res) {
 // ---- 启动：有证书走 https，否则 http ----
 function onListenError(err) {
   if (err.code === "EADDRINUSE") {
-    console.error("启动失败：端口 " + PORT + " 已被占用，请改用其它空闲端口（修改 PORT 环境变量）。");
+    console.error(
+      "启动失败：端口 " +
+        PORT +
+        " 已被占用，请改用其它空闲端口（修改 PORT 环境变量）。",
+    );
   } else if (err.code === "EACCES") {
-    console.error("启动失败：没有权限监听端口 " + PORT + "（1024 以下端口需 root 权限）。");
+    console.error(
+      "启动失败：没有权限监听端口 " + PORT + "（1024 以下端口需 root 权限）。",
+    );
   } else {
     console.error("启动失败：" + err.message);
   }
@@ -194,13 +214,19 @@ function start() {
       const server = https.createServer(opts, handler);
       server.on("error", onListenError);
       // acme.sh 续期后无需重启：每 12 小时热加载一次证书
-      setInterval(function () {
-        try {
-          server.setSecureContext({ cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) });
-        } catch (e) {
-          console.log("cert reload failed: " + e.message);
-        }
-      }, 12 * 3600 * 1000);
+      setInterval(
+        function () {
+          try {
+            server.setSecureContext({
+              cert: fs.readFileSync(CERT),
+              key: fs.readFileSync(KEY),
+            });
+          } catch (e) {
+            console.log("cert reload failed: " + e.message);
+          }
+        },
+        12 * 3600 * 1000,
+      );
       server.listen(PORT, function () {
         console.log("location picker (https) listening on :" + PORT);
       });
@@ -262,6 +288,8 @@ const PAGE = `<!doctype html>
 <div id="map"></div>
 <div id="info">Loading...</div>
 <div class="opts">
+  <label style="flex:1;min-width:140px">Lat, Lng<input id="coord" placeholder="35.46436,139.62461" style="width:100%"></label>
+  <button id="jumpbtn" type="button" style="padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#007aff;color:#fff">Go</button>
   <label>Altitude (m)<input id="alt" type="number" inputmode="numeric"></label>
   <label>H. Accuracy<input id="hacc" type="number" inputmode="numeric"></label>
   <label>V. Accuracy<input id="vacc" type="number" inputmode="numeric"></label>
@@ -470,8 +498,42 @@ function movePin(dispLat,dispLng){
   WGS={lat:w[0], lng:wrapLng(w[1])};
   saved=false;
   marker.setLatLng([dispLat,dispLng]);
+  if(document.activeElement !== $("coord")){
+    $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
+  }
   info();
   fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
+}
+
+function setWgsLocation(lat,lng){
+  lat=Number(lat);
+  lng=wrapLng(Number(lng));
+  if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<-90||lat>90||lng<-180||lng>180){
+    toast("Invalid lat,lng (e.g. 35.46436,139.62461)");
+    return false;
+  }
+  WGS={lat:lat,lng:lng};
+  saved=false;
+  var p=dispPos();
+  marker.setLatLng(p);
+  map.setView(p,15);
+  $("coord").value=WGS.lat.toFixed(5)+","+WGS.lng.toFixed(5);
+  info();
+  fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
+  toast("Moved to "+WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5));
+  return true;
+}
+
+function jumpToCoord(raw){
+  var str = (raw != null ? String(raw) : $("coord").value).trim();
+  if(!str) return false;
+  str = str.replace(/^["'\s(]+|["'\s)]+$/g, '');
+  var parts = str.split(/[,;\s\/]+/);
+  if(parts.length < 2) return false;
+  var lat = Number(parts[0]);
+  var lng = Number(parts[1]);
+  if(isNaN(lat) || isNaN(lng)) return false;
+  return setWgsLocation(lat, lng);
 }
 
 function commit(){
@@ -526,6 +588,10 @@ function locateCurrent(){
 
 function search(){
   var q=$("q").value.trim(); if(!q) return;
+  if(jumpToCoord(q)){
+    $("results").classList.remove("show");
+    return;
+  }
   fetch("https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=8&q="+encodeURIComponent(q))
     .then(function(r){return r.json();})
     .then(function(a){
@@ -574,6 +640,7 @@ function load(){
     L.control.layers({"Amap Map":amapVec,"Amap Satellite":amapSat,"OSM Map":osm},null,{collapsed:false}).addTo(map);
 
     marker=L.marker(dispPos(),{draggable:true}).addTo(map);
+    $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
     updateEnabledUI();
     setLocateBusy(false);
 
@@ -585,6 +652,8 @@ function load(){
 
 $("btn").addEventListener("click",search);
 $("q").addEventListener("keydown",function(e){if(e.key==="Enter")search();});
+$("jumpbtn").addEventListener("click",function(){if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");});
+$("coord").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");}});
 $("locatebtn").addEventListener("click",locateCurrent);
 $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
