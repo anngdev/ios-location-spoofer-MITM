@@ -14,6 +14,7 @@
     mode: "response",
     latitude: 37.3349,
     longitude: -122.00902,
+    jitter: 0,
     horizontalAccuracy: 39,
     verticalAccuracy: 1000,
     altitude: 530,
@@ -451,6 +452,10 @@
     cfg.mode = mode === "request" || mode === "prepare" || mode === "probe" || mode === "inspect" ? mode : "response";
     cfg.latitude = Number(cfg.latitude);
     cfg.longitude = Number(cfg.longitude);
+    cfg.jitter = Number(cfg.jitter || 0);
+    if (!Number.isFinite(cfg.jitter) || cfg.jitter < 0) {
+      cfg.jitter = 0;
+    }
     cfg.horizontalAccuracy = Math.trunc(Number(cfg.horizontalAccuracy));
     cfg.verticalAccuracy = Math.trunc(Number(cfg.verticalAccuracy));
     cfg.altitude = Math.trunc(Number(cfg.altitude));
@@ -483,8 +488,23 @@
       }
     }
 
-    parts.push(makeVarintField(1, coordToInt(config.latitude)));
-    parts.push(makeVarintField(2, coordToInt(config.longitude)));
+    var lat = config.latitude;
+    var lng = config.longitude;
+    if (config.jitter && config.jitter > 0) {
+      var jitter = Number(config.jitter);
+      var maxLatDelta = jitter >= 1 ? jitter / 111139 : jitter;
+      var cosLat = Math.cos((lat * Math.PI) / 180);
+      if (Math.abs(cosLat) < 0.01) {
+        cosLat = 0.01;
+      }
+      var maxLngDelta = jitter >= 1 ? jitter / (111139 * cosLat) : jitter;
+
+      lat += (Math.random() * 2 - 1) * maxLatDelta;
+      lng += (Math.random() * 2 - 1) * maxLngDelta;
+    }
+
+    parts.push(makeVarintField(1, coordToInt(lat)));
+    parts.push(makeVarintField(2, coordToInt(lng)));
     parts.push(makeVarintField(3, config.horizontalAccuracy));
     parts.push(makeVarintField(4, config.unknownValue4));
     parts.push(makeVarintField(5, config.altitude));
@@ -804,6 +824,7 @@
       "enabled",
       "latitude",
       "longitude",
+      "jitter",
       "altitude",
       "address",
       "configHost",
@@ -898,6 +919,7 @@
       "enabled",
       "latitude",
       "longitude",
+      "jitter",
       "altitude",
       "address",
       "configHost",
@@ -1156,6 +1178,7 @@
       "mode",
       "latitude",
       "longitude",
+      "jitter",
       "address",
       "horizontalAccuracy",
       "verticalAccuracy",
