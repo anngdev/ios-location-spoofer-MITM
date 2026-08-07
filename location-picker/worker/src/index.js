@@ -37,7 +37,7 @@ const PAGE_CSP = [
   "script-src https://unpkg.com 'unsafe-inline'",
   "style-src https://unpkg.com 'unsafe-inline'",
   "img-src 'self' https: data:", // 地图瓦片（高德 wprd0*/webst0*、OSM 多子域）
-  "connect-src 'self' https://api.open-meteo.com https://nominatim.openstreetmap.org",
+  "connect-src 'self' https://unpkg.com https://api.open-meteo.com https://nominatim.openstreetmap.org",
   "base-uri 'none'",
   "form-action 'none'",
   "frame-ancestors 'none'",

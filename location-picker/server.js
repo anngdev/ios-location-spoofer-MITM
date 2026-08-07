@@ -252,20 +252,20 @@ const PAGE = `<!doctype html>
 <title>Location Picker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
-  .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+  .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box;flex-shrink:0}
   .bar input{flex:1;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px}
   .bar button{padding:10px 14px;font-size:16px;border:0;border-radius:8px;background:#007aff;color:#fff}
   .bar button:disabled{opacity:.55}
-  .results{margin:0 8px;border:1px solid #e2e2e2;border-radius:8px;max-height:34vh;overflow:auto;display:none}
+  .results{margin:0 8px;border:1px solid #e2e2e2;border-radius:8px;max-height:34vh;overflow:auto;display:none;position:relative;z-index:200;background:#fff}
   .results.show{display:block}
   .rrow{padding:10px 12px;font-size:14px;border-bottom:1px solid #eee;color:#222;display:flex;align-items:center;gap:8px}
   .rrow:last-child{border-bottom:0}
   .rrow:active{background:#f0f6ff}
   .rrow .fname{flex:1;min-width:0}
   .rrow .fdel{padding:6px 10px;font-size:13px;border:0;border-radius:6px;background:#ff3b30;color:#fff;flex-shrink:0}
-  #map{height:52vh}
-  #info{padding:8px 10px;font-size:13px;line-height:1.4}
+  #map{height:42vh;flex-shrink:0;z-index:10;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
+  #info{padding:8px 10px;font-size:13px;line-height:1.4;flex-shrink:0}
   .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
   .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
   .opts input{width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px}
@@ -287,6 +287,7 @@ const PAGE = `<!doctype html>
 <div class="results" id="results"></div>
 <div id="map"></div>
 <div id="info">Loading...</div>
+<div style="flex:1;overflow-y:auto;padding-bottom:20px;">
 <div class="opts">
   <label style="flex:1;min-width:140px">Lat, Lng<input id="coord" placeholder="35.46436,139.62461" style="width:100%"></label>
   <button id="jumpbtn" type="button" style="padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#007aff;color:#fff">Go</button>
@@ -298,7 +299,19 @@ const PAGE = `<!doctype html>
   <button id="favadd">Bookmark Spot</button>
   <button id="favlistbtn">My Bookmarks</button>
 </div>
+<div style="margin:8px;padding:10px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;">
+  <div style="font-weight:600;font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+    <span>Batch Location Input</span>
+    <button id="clearbatchbtn" type="button" style="padding:4px 10px;font-size:12px;border:0;border-radius:6px;background:#ff3b30;color:#fff;cursor:pointer">Clear All</button>
+  </div>
+  <textarea id="batchinput" rows="4" placeholder="Paste multiple lines of lat,lng here:&#10;34.39769,132.47633&#10;35.72880,139.71917&#10;36.57922,136.64985" style="width:100%;box-sizing:border-box;padding:8px;font-size:13px;border:1px solid #ccc;border-radius:6px;font-family:monospace;resize:vertical"></textarea>
+  <div style="margin-top:6px;display:flex;gap:6px">
+    <button id="parsebatchbtn" type="button" style="padding:8px 14px;font-size:14px;border:0;border-radius:6px;background:#007aff;color:#fff;font-weight:600;cursor:pointer">Generate List</button>
+  </div>
+  <div id="batchlist" style="margin-top:8px"></div>
+</div>
 <div class="results" id="favs"></div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -544,6 +557,102 @@ function commit(){
     .catch(function(){ toast("Network error"); });
 }
 
+var BATCH_KEY = "lp_batch_v2";
+
+function getBatchData(){
+  try {
+    var raw = localStorage.getItem(BATCH_KEY);
+    var a = raw ? JSON.parse(raw) : [];
+    return Array.isArray(a) ? a : [];
+  } catch(e){ return []; }
+}
+
+function saveBatchData(list){
+  try { localStorage.setItem(BATCH_KEY, JSON.stringify(list)); } catch(e){}
+}
+
+function renderBatchList(){
+  var container = $("batchlist");
+  if (!container) return;
+  var list = getBatchData();
+  container.innerHTML = "";
+  if (!list.length) return;
+
+  list.forEach(function(item, idx){
+    var row = document.createElement("div");
+    row.style.cssText = "padding:8px 10px;margin-bottom:6px;border:1px solid "+(item.checked?"#90caf9":"#eee")+";border-radius:6px;background:"+(item.checked?"#e3f2fd":"#fff")+";display:flex;align-items:center;gap:8px;";
+
+    var text = document.createElement("span");
+    text.style.cssText = "flex:1;font-size:13px;font-family:monospace;" + (item.checked ? "font-weight:bold;color:#1565c0;" : "color:#333;");
+    text.textContent = (idx + 1) + ". " + Number(item.lat).toFixed(5) + ", " + Number(item.lng).toFixed(5);
+
+    var goBtn = document.createElement("button");
+    goBtn.type = "button";
+    goBtn.textContent = "Go";
+    goBtn.style.cssText = "padding:6px 12px;font-size:13px;border:0;border-radius:6px;background:#007aff;color:#fff;cursor:pointer;font-weight:600;";
+    goBtn.addEventListener("click", function(){
+      setWgsLocation(item.lat, item.lng);
+    });
+
+    var checkBtn = document.createElement("button");
+    checkBtn.type = "button";
+    checkBtn.textContent = item.checked ? "✓ Checked" : "Check";
+    checkBtn.style.cssText = "padding:6px 12px;font-size:13px;border:0;border-radius:6px;background:" + (item.checked ? "#34c759" : "#8e8e93") + ";color:#fff;cursor:pointer;";
+    checkBtn.addEventListener("click", function(){
+      var current = getBatchData();
+      if (current[idx]) {
+        current[idx].checked = !current[idx].checked;
+        saveBatchData(current);
+        renderBatchList();
+      }
+    });
+
+    row.appendChild(text);
+    row.appendChild(goBtn);
+    row.appendChild(checkBtn);
+    container.appendChild(row);
+  });
+}
+
+function parseAndGenerateBatch(){
+  var inputEl = $("batchinput");
+  if (!inputEl) return;
+  var raw = inputEl.value.trim();
+  if (!raw) {
+    toast("Please enter or paste lat,lng lines first");
+    return;
+  }
+  var lines = raw.split(/\\r?\\n/);
+  var newList = [];
+  lines.forEach(function(line){
+    line = line.trim();
+    if (!line) return;
+    var m = line.match(/([+-]?\\d+(?:\\.\\d+)?)\\s*[,;\\s\\/]\\s*([+-]?\\d+(?:\\.\\d+)?)/);
+    if (m) {
+      var lat = Number(m[1]);
+      var lng = Number(m[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        newList.push({ lat: lat, lng: lng, checked: false });
+      }
+    }
+  });
+
+  if (newList.length > 0) {
+    saveBatchData(newList);
+    renderBatchList();
+    toast("Generated list with " + newList.length + " locations");
+  } else {
+    toast("No valid lat,lng coordinates found in input");
+  }
+}
+
+function clearAllBatch(){
+  saveBatchData([]);
+  if ($("batchinput")) $("batchinput").value = "";
+  renderBatchList();
+  toast("Batch list cleared");
+}
+
 function locateCurrent(){
   if(enabledState){
     toast("Please restore real location and refresh Location Services first");
@@ -635,7 +744,7 @@ function load(){
     osm.datum="wgs";
 
     map=L.map("map");
-    amapVec.addTo(map); datum="gcj";
+    osm.addTo(map); datum="wgs";
     map.setView(dispPos(),13);
     L.control.layers({"Amap Map":amapVec,"Amap Satellite":amapSat,"OSM Map":osm},null,{collapsed:false}).addTo(map);
 
@@ -659,7 +768,10 @@ $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
 $("favadd").addEventListener("click",addFavorite);
 $("favlistbtn").addEventListener("click",toggleFavs);
+$("parsebatchbtn").addEventListener("click",parseAndGenerateBatch);
+$("clearbatchbtn").addEventListener("click",clearAllBatch);
 load();
+renderBatchList();
 </script>
 </body>
 </html>`;
