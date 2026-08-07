@@ -12,7 +12,7 @@ import { PAGE } from "./page.js";
 const KV_KEY = "loc";
 
 const DEFAULT = {
-  enabled: true,          // false = 脚本放行原始响应（恢复真实定位）
+  enabled: true, // false = 脚本放行原始响应（恢复真实定位）
   latitude: 37.3349,
   longitude: -122.00902,
   altitude: 530,
@@ -97,9 +97,17 @@ function checkToken(request, env) {
   return { ok: true };
 }
 
+function getKV(env) {
+  return env.KV_BINDING || null;
+}
+
 async function readLoc(env) {
+  const kv = getKV(env);
+  if (!kv) {
+    return { ...DEFAULT };
+  }
   try {
-    const raw = await env.LOC_KV.get(KV_KEY);
+    const raw = await kv.get(KV_KEY);
     if (!raw) {
       return { ...DEFAULT };
     }
@@ -110,11 +118,22 @@ async function readLoc(env) {
 }
 
 async function writeLoc(env, obj) {
-  await env.LOC_KV.put(KV_KEY, JSON.stringify(obj));
+  const kv = getKV(env);
+  if (!kv) {
+    throw new Error(
+      "KV namespace binding missing in Cloudflare Worker (expected LOC_KV or KV_BINDING)",
+    );
+  }
+  await kv.put(KV_KEY, JSON.stringify(obj));
 }
 
 function setInt(target, key, value) {
-  if (value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))) {
+  if (
+    value !== undefined &&
+    value !== null &&
+    value !== "" &&
+    Number.isFinite(Number(value))
+  ) {
     target[key] = Math.round(Number(value));
   }
 }
@@ -144,18 +163,29 @@ export default {
       if (!auth.ok) {
         return unauthorized();
       }
-      let bodyText;
+      let j;
       try {
-        bodyText = await request.text();
+        const bodyText = await request.text();
         if (bodyText.length > 10000) {
           return jsonResponse({ error: "payload too large" }, 413);
         }
-        const j = JSON.parse(bodyText);
-        const la = Number(j.lat);
-        const loRaw = Number(j.lng);
-        if (!Number.isFinite(la) || !Number.isFinite(loRaw) || la < -90 || la > 90) {
-          return jsonResponse({ error: "bad coords" }, 400);
-        }
+        j = JSON.parse(bodyText);
+      } catch {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+
+      const la = Number(j.lat);
+      const loRaw = Number(j.lng);
+      if (
+        !Number.isFinite(la) ||
+        !Number.isFinite(loRaw) ||
+        la < -90 ||
+        la > 90
+      ) {
+        return jsonResponse({ error: "bad coords" }, 400);
+      }
+
+      try {
         const lo = wrapLng(loRaw);
         const cur = await readLoc(env);
         cur.enabled = true; // 保存一个新位置 = 开启伪造
@@ -166,8 +196,8 @@ export default {
         setInt(cur, "verticalAccuracy", j.verticalAccuracy);
         await writeLoc(env, cur);
         return jsonResponse(cur);
-      } catch {
-        return jsonResponse({ error: "bad json" }, 400);
+      } catch (err) {
+        return jsonResponse({ error: err.message || "failed to save" }, 500);
       }
     }
 
@@ -176,23 +206,31 @@ export default {
       if (!auth.ok) {
         return unauthorized();
       }
-      let bodyText;
+      let j;
       try {
-        bodyText = await request.text();
+        const bodyText = await request.text();
         if (bodyText.length > 10000) {
           return jsonResponse({ error: "payload too large" }, 413);
         }
-        const j = JSON.parse(bodyText);
+        j = JSON.parse(bodyText);
+      } catch {
+        return jsonResponse({ error: "bad json" }, 400);
+      }
+
+      try {
         const cur = await readLoc(env);
         cur.enabled = j.enabled !== false; // false=恢复真实定位（脚本放行）
         await writeLoc(env, cur);
         return jsonResponse(cur);
-      } catch (error) {
-        return jsonResponse({ error: "bad json" }, 400);
+      } catch (err) {
+        return jsonResponse({ error: err.message || "failed to update" }, 500);
       }
     }
 
-    if ((url.pathname === "/" || url.pathname === "") && request.method === "GET") {
+    if (
+      (url.pathname === "/" || url.pathname === "") &&
+      request.method === "GET"
+    ) {
       if (!auth.ok) {
         return unauthorized();
       }
@@ -207,7 +245,11 @@ export default {
     }
 
     if (url.pathname === "/health") {
-      return jsonResponse({ ok: true, kv: !!env.LOC_KV, tokenConfigured: !!env.TOKEN });
+      return jsonResponse({
+        ok: true,
+        kv: !!getKV(env),
+        tokenConfigured: !!env.TOKEN,
+      });
     }
 
     // 浏览器会自动请求 favicon；这里静默返 204，避免落到 404 分支产生噪音日志
