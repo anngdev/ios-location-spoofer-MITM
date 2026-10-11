@@ -249,6 +249,7 @@ const PAGE = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Location Picker</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -266,12 +267,68 @@ const PAGE = `<!doctype html>
   .rrow .fdel{padding:6px 10px;font-size:13px;border:0;border-radius:6px;background:#ff3b30;color:#fff;flex-shrink:0}
   #map{height:42vh;flex-shrink:0;z-index:10;box-shadow:0 2px 5px rgba(0,0,0,0.1)}
   #info{padding:8px 10px;font-size:13px;line-height:1.4;flex-shrink:0}
-  .opts{padding:6px 10px 12px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
-  .opts label{font-size:13px;color:#444;display:flex;flex-direction:column}
-  .opts input{width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px}
-  #savebtn{padding:11px 20px;font-size:16px;border:0;border-radius:8px;background:#34c759;color:#fff;font-weight:600}
-  #restorebtn{padding:11px 16px;font-size:15px;border:0;border-radius:8px;background:#8e8e93;color:#fff}
-  #favadd,#favlistbtn{padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#5856d6;color:#fff}
+  .coord-bar{padding:6px 10px 8px;display:flex;flex-direction:column;gap:8px;}
+  .coord-row{display:flex;gap:8px;align-items:flex-end;width:100%;}
+  .coord-row label{flex:1;min-width:0;font-size:13px;color:#444;display:flex;flex-direction:column;gap:4px;margin:0;}
+  .action-row{display:flex;gap:8px;width:100%;}
+  #coord, #jumpbtn, .action-row button{
+    height:42px !important;
+    min-height:42px !important;
+    max-height:42px !important;
+    box-sizing:border-box !important;
+    margin:0 !important;
+    border-radius:8px !important;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    appearance:none;
+    vertical-align:middle;
+  }
+  #coord{
+    width:100%;
+    padding:0 12px;
+    font-size:15px;
+    line-height:40px;
+    border:1px solid #ccc !important;
+    background:#fff;
+    color:#222;
+    outline:none;
+  }
+  #jumpbtn{
+    padding:0 18px;
+    font-size:15px;
+    font-weight:600;
+    line-height:40px;
+    border:1px solid transparent !important;
+    background:#007aff;
+    color:#fff;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .action-row button{
+    flex:1;
+    font-size:18px;
+    line-height:40px;
+    border:1px solid transparent !important;
+    color:#fff;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #pastebtn{background:#5ac8fa;}
+  #savebtn{background:#34c759;}
+  #checkpointbtn2{background:#ff9500;}
+  #favadd{display:none !important;}
+  #restorebtn{padding:10px 14px;font-size:14px;border:0;border-radius:8px;background:#8e8e93;color:#fff;cursor:pointer;}
+  @media (min-width: 600px) {
+    .coord-bar{flex-direction:row;align-items:flex-end;}
+    .coord-row{flex:1;}
+    .action-row{width:auto;}
+    .action-row button{flex:none;min-width:44px;padding:0 14px;}
+  }
   .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
     background:rgba(0,0,0,.85);color:#fff;padding:10px 16px;border-radius:8px;
     font-size:14px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:9999}
@@ -279,7 +336,7 @@ const PAGE = `<!doctype html>
 </style>
 </head>
 <body>
-<div class="bar">
+<div class="bar" style="display:none">
   <input id="q" placeholder="Search location (preview only, does not change location)">
   <button id="locatebtn" disabled>Current Location</button>
   <button id="btn">Search</button>
@@ -288,16 +345,52 @@ const PAGE = `<!doctype html>
 <div id="map"></div>
 <div id="info">Loading...</div>
 <div style="flex:1;overflow-y:auto;padding-bottom:20px;">
-<div class="opts">
-  <label style="flex:1;min-width:140px">Lat, Lng<input id="coord" placeholder="35.46436,139.62461" style="width:100%"></label>
-  <button id="jumpbtn" type="button" style="padding:11px 14px;font-size:15px;border:0;border-radius:8px;background:#007aff;color:#fff">Go</button>
-  <label>Altitude (m)<input id="alt" type="number" inputmode="numeric"></label>
-  <label>H. Accuracy<input id="hacc" type="number" inputmode="numeric"></label>
-  <label>V. Accuracy<input id="vacc" type="number" inputmode="numeric"></label>
-  <button id="savebtn">Save Location</button>
-  <button id="restorebtn">Restore Real Location</button>
-  <button id="favadd">Bookmark Spot</button>
-  <button id="favlistbtn">My Bookmarks</button>
+<div class="coord-bar">
+  <div class="coord-row">
+    <label style="flex:1;min-width:0;font-size:13px;color:#444;display:flex;flex-direction:column;gap:4px;margin:0;">
+      <span>Lat, Lng</span>
+      <input id="coord" placeholder="35.46436,139.62461">
+    </label>
+    <button id="jumpbtn" type="button" title="Go (tự động paste nếu clipboard có tọa độ)">Go</button>
+  </div>
+  <div class="action-row">
+    <button id="pastebtn" type="button" title="Paste clipboard & Go" aria-label="Paste & Go">📋</button>
+    <button id="savebtn" type="button" title="Save Location" aria-label="Save Location">💾</button>
+    <button id="checkpointbtn2" type="button" title="Mark Checkpoint" aria-label="Mark Checkpoint">⏱</button>
+    <button id="favadd" type="button" style="display:none"></button>
+    <button id="favlistbtn" type="button" style="display:none"></button>
+  </div>
+</div>
+<details style="margin:0 8px 8px;padding:8px 10px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;">
+  <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#555;user-select:none;">⚙️ Advanced (Altitude, Accuracy, Real Location)</summary>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:8px;">
+    <label style="font-size:13px;color:#444;display:flex;flex-direction:column">Altitude (m)<input id="alt" type="number" inputmode="numeric" style="width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px"></label>
+    <label style="font-size:13px;color:#444;display:flex;flex-direction:column">H. Accuracy<input id="hacc" type="number" inputmode="numeric" style="width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px"></label>
+    <label style="font-size:13px;color:#444;display:flex;flex-direction:column">V. Accuracy<input id="vacc" type="number" inputmode="numeric" style="width:88px;padding:8px;font-size:15px;border:1px solid #ccc;border-radius:6px;margin-top:2px"></label>
+    <button id="restorebtn" type="button" style="padding:10px 14px;font-size:14px;border:0;border-radius:8px;background:#8e8e93;color:#fff;cursor:pointer">Restore Real Location</button>
+  </div>
+</details>
+<div id="cooldowncard" style="margin:8px;padding:10px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;">
+  <div style="font-weight:600;font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span>⚡ Pokemon GO Cooldown</span>
+      <span style="font-size:11px;color:#007aff;background:#e5f1ff;padding:2px 6px;border-radius:4px;font-weight:500;">+1m an toàn</span>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button id="checkpointbtn" type="button" title="Mark Checkpoint" aria-label="Mark Checkpoint" style="padding:4px 10px;font-size:16px;border:0;border-radius:6px;background:#ff9500;color:#fff;cursor:pointer">⏱</button>
+      <button id="clearcheckpointbtn" type="button" style="padding:4px 8px;font-size:12px;border:0;border-radius:6px;background:#8e8e93;color:#fff;cursor:pointer">Reset</button>
+    </div>
+  </div>
+  <div id="cooldowninfo" style="font-size:13px;color:#333;line-height:1.5;background:#fff;padding:8px 10px;border-radius:6px;border:1px solid #eee;">
+    No checkpoint set. Enter/pick location and click <b>Mark Checkpoint</b>.
+  </div>
+</div>
+<div id="favsection" style="margin:8px;padding:10px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;">
+  <div style="font-weight:600;font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+    <span>My Bookmarks</span>
+    <button id="favadd2" type="button" title="Bookmark Spot" aria-label="Bookmark Spot" style="padding:4px 10px;font-size:16px;border:0;border-radius:6px;background:#5856d6;color:#fff;cursor:pointer">⭐</button>
+  </div>
+  <div id="favs" style="border:1px solid #e2e2e2;border-radius:8px;background:#fff;max-height:24vh;overflow-y:auto;"></div>
 </div>
 <div style="margin:8px;padding:10px;border:1px solid #e2e2e2;border-radius:8px;background:#fafafa;">
   <div style="font-weight:600;font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
@@ -310,7 +403,6 @@ const PAGE = `<!doctype html>
   </div>
   <div id="batchlist" style="margin-top:8px"></div>
 </div>
-<div class="results" id="favs"></div>
 </div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -376,7 +468,7 @@ function geolocationErrorMessage(err){
 }
 
 var FAV_KEY="lp_favs_v1";
-var FAV_MAX=12;
+var FAV_MAX=50;
 function loadFavs(){
   try{
     var raw=localStorage.getItem(FAV_KEY);
@@ -398,41 +490,86 @@ function applyFavorite(it){
   var p=dispPos();
   marker.setLatLng(p);
   map.setView(p,15);
+  $("coord").value=WGS.lat.toFixed(5)+","+WGS.lng.toFixed(5);
   info();
-  toast("Bookmark loaded. Click Save Location to apply.");
+  updateCooldownUI();
+  toast("Bookmark loaded. Click Save Location to apply."); // toast("已加载收藏，确认后保存");
+}
+function moveFav(fromIdx, toIdx){
+  var list=loadFavs();
+  if(toIdx < 0 || toIdx >= list.length) return;
+  var it=list.splice(fromIdx, 1)[0];
+  list.splice(toIdx, 0, it);
+  saveFavs(list);
+  renderFavs();
 }
 function renderFavs(){
   var box=$("favs");
+  if(!box)return;
   var list=loadFavs();
   box.innerHTML="";
-  if(!list.length){box.classList.remove("show");return;}
+  if(!list.length){
+    box.innerHTML="<div style='padding:10px 12px;font-size:13px;color:#8e8e93;text-align:center;'>No bookmarks saved yet</div>";
+    return;
+  }
   list.forEach(function(it,idx){
     var row=document.createElement("div");
     row.className="rrow";
     var name=document.createElement("span");
     name.className="fname";
-    name.textContent=it.name||(Number(it.lat).toFixed(4)+","+Number(it.lng).toFixed(4));
+    name.style.cursor="pointer";
+    name.textContent=it.name||(Number(it.lat).toFixed(5)+","+Number(it.lng).toFixed(5));
     name.addEventListener("click",function(){
       $("results").classList.remove("show");
       applyFavorite(it);
     });
+
+    var actions=document.createElement("div");
+    actions.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0;";
+
+    var upBtn=document.createElement("button");
+    upBtn.type="button";
+    upBtn.textContent="↑";
+    upBtn.title="Move Up";
+    upBtn.style.cssText="padding:4px 8px;font-size:12px;border:1px solid #ccc;border-radius:4px;background:#f8f9fa;color:#333;cursor:pointer;" + (idx === 0 ? "opacity:0.3;pointer-events:none;" : "");
+    upBtn.addEventListener("click",function(e){
+      e.stopPropagation();
+      moveFav(idx, idx - 1);
+    });
+
+    var downBtn=document.createElement("button");
+    downBtn.type="button";
+    downBtn.textContent="↓";
+    downBtn.title="Move Down";
+    downBtn.style.cssText="padding:4px 8px;font-size:12px;border:1px solid #ccc;border-radius:4px;background:#f8f9fa;color:#333;cursor:pointer;" + (idx === list.length - 1 ? "opacity:0.3;pointer-events:none;" : "");
+    downBtn.addEventListener("click",function(e){
+      e.stopPropagation();
+      moveFav(idx, idx + 1);
+    });
+
     var del=document.createElement("button");
     del.className="fdel";
     del.type="button";
     del.textContent="Del";
     del.addEventListener("click",function(e){
       e.stopPropagation();
+      var itName = it.name || (Number(it.lat).toFixed(5) + "," + Number(it.lng).toFixed(5));
+      if (!window.confirm('Delete bookmark "' + itName + '"?')) return;
       var next=loadFavs();
       next.splice(idx,1);
       saveFavs(next);
-      if(next.length)renderFavs();else{box.innerHTML="";box.classList.remove("show");}
+      renderFavs();
       toast("Bookmark deleted");
     });
+
+    actions.appendChild(upBtn);
+    actions.appendChild(downBtn);
+    actions.appendChild(del);
+
     row.appendChild(name);
-    row.appendChild(del);
+    row.appendChild(actions);
     box.appendChild(row);
   });
-  box.classList.add("show");
 }
 function addFavorite(){
   if(!Number.isFinite(WGS.lat)||!Number.isFinite(WGS.lng)){toast("Current coordinates invalid");return;}
@@ -457,11 +594,294 @@ function addFavorite(){
   toast("Bookmarked successfully");
 }
 function toggleFavs(){
-  var box=$("favs");
-  if(box.classList.contains("show")){box.classList.remove("show");return;}
-  $("results").classList.remove("show");
-  if(!loadFavs().length){toast("No bookmarks saved yet");return;}
-  renderFavs();
+  var sec=$("favsection");
+  if(sec){sec.scrollIntoView({behavior:"smooth"});}
+}
+
+var CHECKPOINT_KEY = "lp_pogo_cp_v1";
+var POGO_SAFETY_BUFFER_MIN = 1;
+
+var POGO_COOLDOWNS = [
+  [1, 1],
+  [2, 2],
+  [3, 2],
+  [4, 6],
+  [5, 6],
+  [6, 7],
+  [8, 8],
+  [10, 8],
+  [12, 9],
+  [15, 11],
+  [20, 13],
+  [25, 15],
+  [30, 18],
+  [40, 22],
+  [50, 24],
+  [60, 25],
+  [70, 26],
+  [80, 27],
+  [90, 28],
+  [100, 30],
+  [125, 33],
+  [150, 36],
+  [200, 42],
+  [250, 46],
+  [300, 50],
+  [400, 56],
+  [500, 64],
+  [600, 72],
+  [700, 79],
+  [800, 86],
+  [900, 93],
+  [1000, 100],
+  [1100, 108],
+  [1200, 115],
+  [1300, 120]
+];
+
+function getHaversineDistKm(lat1, lon1, lat2, lon2){
+  var R = 6371;
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function getPogoCooldownMin(distKm){
+  if (distKm <= 0.05) return 0;
+  for (var i = 0; i < POGO_COOLDOWNS.length; i++) {
+    if (distKm <= POGO_COOLDOWNS[i][0]) {
+      return POGO_COOLDOWNS[i][1] + POGO_SAFETY_BUFFER_MIN;
+    }
+  }
+  return 120 + POGO_SAFETY_BUFFER_MIN;
+}
+
+function formatHours(min){
+  if (min < 60) return min + " min";
+  var h = Math.floor(min / 60);
+  var m = min % 60;
+  return min + " min (" + h + " hr" + (m > 0 ? " " + m + " min" : "") + ")";
+}
+
+function getCheckpoint(){
+  try{
+    var raw = localStorage.getItem(CHECKPOINT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+
+function saveCheckpoint(cp){
+  try{
+    if (cp) localStorage.setItem(CHECKPOINT_KEY, JSON.stringify(cp));
+    else localStorage.removeItem(CHECKPOINT_KEY);
+  }catch(e){}
+}
+
+function setCheckpoint(){
+  var lat = WGS.lat;
+  var lng = WGS.lng;
+  var raw = $("coord") ? $("coord").value.trim() : "";
+  if (raw) {
+    var parts = raw.replace(/^["'\\s(]+|["'\\s)]+$/g, '').split(/[,;\\s\\/]+/);
+    if (parts.length >= 2) {
+      var pLat = Number(parts[0]), pLng = Number(parts[1]);
+      if (Number.isFinite(pLat) && Number.isFinite(pLng) && pLat >= -90 && pLat <= 90 && pLng >= -180 && pLng <= 180) {
+        lat = pLat; lng = pLng;
+      }
+    }
+  }
+  var cp = { lat: lat, lng: lng, time: Date.now() };
+  saveCheckpoint(cp);
+  updateCooldownUI();
+  var d = new Date(cp.time);
+  var timeStr = d.toLocaleTimeString ? d.toLocaleTimeString() : d.toTimeString().split(" ")[0];
+  toast("Checkpoint marked: " + lat.toFixed(5) + ", " + lng.toFixed(5) + " (" + timeStr + ")");
+}
+
+function clearCheckpoint(){
+  saveCheckpoint(null);
+  updateCooldownUI();
+  toast("Checkpoint reset");
+}
+
+function getMaxSafeDistanceKm(elapsedMinutes){
+  if (elapsedMinutes < 1 + POGO_SAFETY_BUFFER_MIN) return 0;
+  if (elapsedMinutes >= 120 + POGO_SAFETY_BUFFER_MIN) return Infinity;
+  var maxDist = 0;
+  for (var i = 0; i < POGO_COOLDOWNS.length; i++) {
+    var dist = POGO_COOLDOWNS[i][0];
+    var reqCd = POGO_COOLDOWNS[i][1] + POGO_SAFETY_BUFFER_MIN;
+    if (elapsedMinutes >= reqCd) {
+      if (dist > maxDist) maxDist = dist;
+    }
+  }
+  return maxDist;
+}
+
+function getNextMilestone(elapsedSec){
+  var elapsedMinutes = elapsedSec / 60;
+  if (elapsedMinutes >= 120 + POGO_SAFETY_BUFFER_MIN) return null;
+  var nextDist = null;
+  var nextCdSec = null;
+  for (var i = 0; i < POGO_COOLDOWNS.length; i++) {
+    var dist = POGO_COOLDOWNS[i][0];
+    var reqCdSec = (POGO_COOLDOWNS[i][1] + POGO_SAFETY_BUFFER_MIN) * 60;
+    if (reqCdSec > elapsedSec) {
+      if (nextCdSec === null) {
+        nextCdSec = reqCdSec;
+        nextDist = dist;
+      } else if (reqCdSec === nextCdSec) {
+        nextDist = dist;
+      } else {
+        break;
+      }
+    }
+  }
+  if (nextDist !== null && nextCdSec !== null) {
+    return { dist: nextDist, waitSec: nextCdSec - elapsedSec };
+  }
+  return null;
+}
+
+function formatWaitShort(sec){
+  var m = Math.floor(sec / 60);
+  var s = sec % 60;
+  if (m > 0) return m + "m " + (s < 10 ? "0" : "") + s + "s";
+  return s + "s";
+}
+
+function jumpToCheckpoint(){
+  var cp = getCheckpoint();
+  if(!cp || !Number.isFinite(cp.lat) || !Number.isFinite(cp.lng)) return;
+  setWgsLocation(cp.lat, cp.lng);
+  toast("Map centered to checkpoint (" + cp.lat.toFixed(5) + ", " + cp.lng.toFixed(5) + ")");
+}
+
+var cpMarker = null;
+var cpLine = null;
+
+function updateCpMapLayer(){
+  if (!map) return;
+  var cp = getCheckpoint();
+  if (!cp || !Number.isFinite(cp.lat) || !Number.isFinite(cp.lng) || !cp.time) {
+    if (cpMarker) { map.removeLayer(cpMarker); cpMarker = null; }
+    if (cpLine) { map.removeLayer(cpLine); cpLine = null; }
+    return;
+  }
+
+  var cpPos = dispPos(cp.lat, cp.lng);
+  var curPos = dispPos(WGS.lat, WGS.lng);
+
+  if (!cpMarker) {
+    var cpIcon = L.divIcon({
+      className: "custom-cp-marker",
+      html: '<div style="background:#ff9500;color:#fff;border:2px solid #fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.35);font-size:13px;cursor:pointer;user-select:none;" title="Checkpoint: Bấm để đưa map về đây">⏱</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+    cpMarker = L.marker(cpPos, { icon: cpIcon, zIndexOffset: 500 }).addTo(map);
+    cpMarker.on("click", function(){
+      jumpToCheckpoint();
+    });
+  } else {
+    cpMarker.setLatLng(cpPos);
+  }
+
+  if (!cpLine) {
+    cpLine = L.polyline([cpPos, curPos], {
+      color: "#ff3b30",
+      weight: 2.5,
+      dashArray: "6, 6",
+      opacity: 0.85
+    }).addTo(map);
+  } else {
+    cpLine.setLatLngs([cpPos, curPos]);
+  }
+}
+
+function updateCooldownUI(){
+  updateCpMapLayer();
+  var box = $("cooldowninfo");
+  if (!box) return;
+  var cp = getCheckpoint();
+  if (!cp || !Number.isFinite(cp.lat) || !Number.isFinite(cp.lng) || !cp.time) {
+    box.innerHTML = '<span style="color:#8e8e93">No checkpoint set. Enter/pick location and click <b>⏱</b> to start tracking.</span>';
+    return;
+  }
+
+  var curLat = WGS.lat;
+  var curLng = WGS.lng;
+  var distKm = getHaversineDistKm(cp.lat, cp.lng, curLat, curLng);
+  var reqMin = getPogoCooldownMin(distKm);
+  var reqSec = reqMin * 60;
+
+  var elapsedSec = Math.max(0, Math.floor((Date.now() - cp.time) / 1000));
+  var remainSec = Math.max(0, reqSec - elapsedSec);
+
+  var cpDate = new Date(cp.time);
+  var cpTimeStr = cpDate.toLocaleTimeString ? cpDate.toLocaleTimeString() : cpDate.toTimeString().split(" ")[0];
+
+  var distStr = distKm < 1 ? Math.round(distKm * 1000) + " m" : distKm.toFixed(2) + " km";
+  var reqStr = formatHours(reqMin);
+  var safeNote = POGO_SAFETY_BUFFER_MIN > 0 && reqMin > 0 ? ' <span style="font-size:11px;color:#007aff;font-weight:normal;" title="Đã tự động cộng 1 phút đệm an toàn">(+1m an toàn)</span>' : '';
+
+  var elapM = Math.floor(elapsedSec / 60);
+  var elapS = elapsedSec % 60;
+  var elapStr = elapM + "m " + (elapS < 10 ? "0" : "") + elapS + "s";
+
+  var maxSafeKm = getMaxSafeDistanceKm(elapsedSec / 60);
+  var nextM = getNextMilestone(elapsedSec);
+  var maxSafeHtml = "";
+  if (maxSafeKm === 0) {
+    var nextHint = nextM ? " (chờ " + formatWaitShort(nextM.waitSec) + " để đi " + nextM.dist + " km)" : "";
+    maxSafeHtml = '<b style="color:#ff9500">0 km</b>' + (nextHint ? '<span style="font-size:11.5px;color:#666;font-weight:normal">' + nextHint + '</span>' : "");
+  } else if (!Number.isFinite(maxSafeKm) || maxSafeKm >= 1300) {
+    maxSafeHtml = '<b style="color:#34c759">1,300+ km (Toàn cầu / Không giới hạn)</b>';
+  } else {
+    var nextHint = nextM ? " (chờ " + formatWaitShort(nextM.waitSec) + " để đi " + nextM.dist + " km)" : "";
+    maxSafeHtml = '<b style="color:#007aff">' + maxSafeKm.toLocaleString() + ' km</b>' + (nextHint ? '<span style="font-size:11.5px;color:#666;font-weight:normal">' + nextHint + '</span>' : "");
+  }
+
+  var statusBadge = "";
+  if (remainSec <= 0) {
+    statusBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#34c759;color:#fff;font-weight:700;font-size:13px;">✅ Ready (0 min wait)</span>';
+  } else {
+    var remH = Math.floor(remainSec / 3600);
+    var remM = Math.floor((remainSec % 3600) / 60);
+    var remS = remainSec % 60;
+    var remFormatted = "";
+    if (remH > 0) {
+      remFormatted = remH + "h " + remM + "m " + (remS < 10 ? "0" : "") + remS + "s";
+    } else if (remM > 0) {
+      remFormatted = remM + "m " + (remS < 10 ? "0" : "") + remS + "s";
+    } else {
+      remFormatted = remS + "s";
+    }
+    var remTotalMin = Math.ceil(remainSec / 60);
+    statusBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:4px;background:#ff3b30;color:#fff;font-weight:700;font-size:13px;">⏳ Wait ' + remFormatted + ' (~' + remTotalMin + ' min)</span>';
+  }
+
+  box.innerHTML = 
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:4px;">' +
+      '<div>' + statusBadge + '</div>' +
+      '<div style="font-size:13px;color:#1c1c1e;">Distance: <b>' + distStr + '</b></div>' +
+    '</div>' +
+    '<div style="margin:6px 0;padding:7px 10px;background:#f0f7ff;border:1px solid #d0e5ff;border-radius:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px;font-size:13px;">' +
+      '<span style="color:#0051ba;font-weight:600;">🚀 Đi xa nhất lúc này (Max Range):</span>' +
+      '<div>' + maxSafeHtml + '</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:12px;color:#555;">' +
+      '<span onclick="jumpToCheckpoint()" style="cursor:pointer;padding:2px 7px;border-radius:5px;background:#eef5ff;border:1px solid #c8e1ff;color:#0051ba;display:inline-flex;align-items:center;gap:4px;user-select:none;" title="Bấm để đưa map về checkpoint này">' +
+        '📍 Checkpoint: <b style="text-decoration:underline;text-underline-offset:2px;">' + cp.lat.toFixed(5) + ', ' + cp.lng.toFixed(5) + '</b> <span style="font-size:11px;opacity:0.8">🔍</span>' +
+      '</span>' +
+      '<span>(' + cpTimeStr + ')</span>' +
+      '<span>⏱ Required: <b>' + reqStr + '</b>' + safeNote + '</span>' +
+      '<span>⌛ Elapsed: <b>' + elapStr + '</b></span>' +
+    '</div>';
 }
 
 function info(){
@@ -494,7 +914,11 @@ function toggleEnabled(){
     .catch(function(){ toast("Network error"); });
 }
 
-function dispPos(){return datum==="gcj"?GCJ.wgs2gcj(WGS.lat,WGS.lng):[WGS.lat,WGS.lng];}
+function dispPos(lat, lng){
+  var aLat = lat !== undefined ? lat : WGS.lat;
+  var aLng = lng !== undefined ? lng : WGS.lng;
+  return datum === "gcj" ? GCJ.wgs2gcj(aLat, aLng) : [aLat, aLng];
+}
 function toWgs(lat,lng){lng=wrapLng(lng);return datum==="gcj"?GCJ.gcj2wgs(lat,lng):[lat,lng];}
 
 function fetchElevation(lat,lng){
@@ -515,6 +939,7 @@ function movePin(dispLat,dispLng){
     $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
   }
   info();
+  updateCooldownUI();
   fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
 }
 
@@ -532,6 +957,7 @@ function setWgsLocation(lat,lng){
   map.setView(p,15);
   $("coord").value=WGS.lat.toFixed(5)+","+WGS.lng.toFixed(5);
   info();
+  updateCooldownUI();
   fetchElevation(WGS.lat,WGS.lng).then(function(el){ if(el!==null)$("alt").value=Math.round(el); info(); });
   toast("Moved to "+WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5));
   return true;
@@ -742,36 +1168,113 @@ function load(){
     amapSat.datum="gcj";
     var osm=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
     osm.datum="wgs";
+    var carto=L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{subdomains:"abcd",maxZoom:20,attribution:"© OpenStreetMap, © CARTO"});
+    carto.datum="wgs";
+    var google=L.tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",{subdomains:"0123",maxZoom:20,attribution:"Google"});
+    google.datum="wgs";
+    var googleSat=L.tileLayer("https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",{subdomains:"0123",maxZoom:20,attribution:"Google"});
+    googleSat.datum="wgs";
+
+    var baseLayers={
+      "Google Map": google,
+      "Google Satellite": googleSat,
+      "OSM (CARTO)": carto,
+      "OSM Standard": osm,
+      "Amap Map": amapVec,
+      "Amap Satellite": amapSat
+    };
+
+    var savedLayerName="Google Map";
+    try {
+      var storedLayer=localStorage.getItem("lp_map_layer_v1");
+      if(storedLayer && baseLayers[storedLayer]){
+        savedLayerName=storedLayer;
+      }
+    } catch(e){}
+
+    var activeLayer=baseLayers[savedLayerName] || google;
 
     map=L.map("map");
-    osm.addTo(map); datum="wgs";
+    activeLayer.addTo(map); datum=activeLayer.datum||"wgs";
     map.setView(dispPos(),13);
-    L.control.layers({"Amap Map":amapVec,"Amap Satellite":amapSat,"OSM Map":osm},null,{collapsed:false}).addTo(map);
+    L.control.layers(baseLayers,null,{collapsed:false}).addTo(map);
 
     marker=L.marker(dispPos(),{draggable:true}).addTo(map);
     $("coord").value = WGS.lat.toFixed(5) + "," + WGS.lng.toFixed(5);
     updateEnabledUI();
     setLocateBusy(false);
 
-    map.on("baselayerchange",function(e){datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom()); info();});
+    map.on("baselayerchange",function(e){
+      try { localStorage.setItem("lp_map_layer_v1", e.name); } catch(err){}
+      datum=e.layer.datum||"wgs"; var p=dispPos(); marker.setLatLng(p); map.setView(p,map.getZoom());
+      updateCpMapLayer();
+      info();
+    });
     map.on("click",function(e){movePin(e.latlng.lat,e.latlng.lng);});
     marker.on("dragend",function(){var p=marker.getLatLng(); movePin(p.lat,p.lng);});
   }).catch(function(){$("info").textContent="Load failed. Check if token is correct";});
 }
 
+var coordUserTyped = false;
+$("coord").addEventListener("input", function(){ coordUserTyped = true; });
+
+async function pasteClipboardAndGo(){
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      var clip = await navigator.clipboard.readText();
+      if (clip && typeof clip === "string") {
+        var str = clip.trim().replace(/^["'\\s(]+|["'\\s)]+$/g, '');
+        var parts = str.split(/[,;\\s\\/]+/);
+        if (parts.length >= 2) {
+          var cLat = Number(parts[0]), cLng = Number(parts[1]);
+          if (Number.isFinite(cLat) && Number.isFinite(cLng) && cLat >= -90 && cLat <= 90 && cLng >= -180 && cLng <= 180) {
+            $("coord").value = clip.trim();
+            coordUserTyped = false;
+            if (setWgsLocation(cLat, cLng)) {
+              toast("Pasted & Moved: " + cLat.toFixed(5) + ", " + cLng.toFixed(5));
+              return true;
+            }
+          }
+        }
+      }
+    } catch(err){}
+  }
+  return false;
+}
+
+async function handleGoClick(){
+  if (!coordUserTyped) {
+    var ok = await pasteClipboardAndGo();
+    if (ok) return;
+  }
+  coordUserTyped = false;
+  if (!jumpToCoord()) toast("Enter lat,lng e.g. 35.46436,139.62461");
+}
+
 $("btn").addEventListener("click",search);
 $("q").addEventListener("keydown",function(e){if(e.key==="Enter")search();});
-$("jumpbtn").addEventListener("click",function(){if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");});
-$("coord").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");}});
+$("jumpbtn").addEventListener("click",handleGoClick);
+if($("pastebtn")) $("pastebtn").addEventListener("click", async function(){
+  var ok = await pasteClipboardAndGo();
+  if(!ok) toast("Clipboard has no valid coordinates");
+});
+$("coord").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();coordUserTyped=true;if(!jumpToCoord())toast("Enter lat,lng e.g. 35.46436,139.62461");}});
 $("locatebtn").addEventListener("click",locateCurrent);
 $("savebtn").addEventListener("click",commit);
 $("restorebtn").addEventListener("click",toggleEnabled);
+if($("checkpointbtn")) $("checkpointbtn").addEventListener("click",setCheckpoint);
+if($("checkpointbtn2")) $("checkpointbtn2").addEventListener("click",setCheckpoint);
+if($("clearcheckpointbtn")) $("clearcheckpointbtn").addEventListener("click",clearCheckpoint);
 $("favadd").addEventListener("click",addFavorite);
-$("favlistbtn").addEventListener("click",toggleFavs);
+if($("favadd2")) $("favadd2").addEventListener("click",addFavorite);
+if($("favlistbtn")) $("favlistbtn").addEventListener("click",toggleFavs);
 $("parsebatchbtn").addEventListener("click",parseAndGenerateBatch);
 $("clearbatchbtn").addEventListener("click",clearAllBatch);
 load();
+renderFavs();
 renderBatchList();
+updateCooldownUI();
+setInterval(updateCooldownUI,1000);
 </script>
 </body>
 </html>`;

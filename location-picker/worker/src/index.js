@@ -24,8 +24,8 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
-  // 选点页 URL 带 ?token=，务必阻止它经 Referer 泄漏给 unpkg / 高德 / OSM / open-meteo / nominatim
-  "Referrer-Policy": "no-referrer",
+  // 选点页 URL 带 ?token=，使用 strict-origin-when-cross-origin 只向第三方暴露来源域名（不泄漏 path / token 查询参数），同时满足 OSM 等瓦片服务器要求的合法 Referer 头
+  "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Content-Type-Options": "nosniff",
 };
 
