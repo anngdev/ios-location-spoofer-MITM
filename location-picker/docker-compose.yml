@@ -5,9 +5,11 @@ services:
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
     environment:
-      - TOKEN=${TOKEN:?TOKEN is required}
+      - TOKEN=${TOKEN:-}
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
       - PORT=${PORT:-8080}
       - DATA_FILE=/data/loc.json
+      - USERS_FILE=/data/users.json
     volumes:
       - .:/data
     restart: unless-stopped

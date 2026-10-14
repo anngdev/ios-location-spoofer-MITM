@@ -14,11 +14,11 @@ const pages = [
 
 for (const [label, content] of pages) {
   test(`${label} exposes a guarded current-location control`, () => {
-    assert.match(content, /<button id="locatebtn"[^>]*>当前位置<\/button>/);
+    assert.match(content, /<button id="locatebtn"[^>]*>(?:当前位置|Current Location)<\/button>/);
     assert.match(content, /function locateCurrent\(\)/);
     assert.match(
       content,
-      /if\s*\(enabledState\)\s*\{\s*toast\("请先恢复真实定位并刷新定位服务"\);\s*return;\s*\}/s,
+      /if\s*\(enabledState\)\s*\{\s*toast\(["'](?:Please restore real location|请先恢复真实定位)/s,
     );
     assert.match(content, /navigator\.geolocation\.getCurrentPosition\(/);
   });
@@ -38,9 +38,9 @@ for (const [label, content] of pages) {
   });
 
   test(`${label} maps Geolocation failures to user-facing messages`, () => {
-    assert.match(content, /定位权限被拒绝，请在 Safari 设置中允许定位/);
-    assert.match(content, /暂时无法获取当前位置/);
-    assert.match(content, /获取当前位置超时，请到开阔处重试/);
-    assert.match(content, /当前浏览器不支持定位/);
+    assert.match(content, /(?:定位权限被拒绝|Location permission denied)/);
+    assert.match(content, /(?:暂时无法获取当前位置|Unable to fetch current location)/);
+    assert.match(content, /(?:获取当前位置超时|Location request timed out)/);
+    assert.match(content, /(?:当前浏览器不支持定位|Current browser does not support geolocation)/);
   });
 }

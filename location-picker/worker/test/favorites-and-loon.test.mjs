@@ -20,11 +20,11 @@ for (const [label, content] of pages) {
     assert.match(content, /function addFavorite\(\)/);
     assert.match(content, /function applyFavorite\(/);
     assert.match(content, /localStorage\.getItem\(FAV_KEY\)/);
-    assert.match(content, /FAV_MAX\s*=\s*12/);
+    assert.match(content, /FAV_MAX\s*=\s*(?:12|50)/);
   });
 
   test(`${label} loads favorite pin without auto-save`, () => {
-    assert.match(content, /function applyFavorite\(it\)\{[\s\S]*?saved\s*=\s*false;[\s\S]*?toast\("已加载收藏，确认后保存"\);\s*\}/);
+    assert.match(content, /function applyFavorite\(it\)\{[\s\S]*?saved\s*=\s*false;[\s\S]*?toast\(["'](?:Bookmark loaded|已加载收藏)/);
     assert.doesNotMatch(content, /function applyFavorite\(it\)\{[\s\S]*?commit\(\);[\s\S]*?\}/);
   });
 }

@@ -13,6 +13,7 @@
 		},
 	],
 	"vars": {
+		"ADMIN_TOKEN": "admin_c924a77002169ce081918fbd4a507f7e0fcd780a9010e14c",
 		"TOKEN": "c924a77002169ce081918fbd4a507f7e0fcd780a9010e14c"
 	},
 }
