@@ -1,19 +1,15 @@
 {
-	"$schema": "./node_modules/wrangler/config-schema.json",
-	"name": "ios-location-picker",
-	"main": "src/index.js",
-	"compatibility_date": "2026-01-01",
-	"workers_dev": true,
-	// 首次部署前执行: npx wrangler kv namespace create LOC_KV
-	// 把输出的 id 填到下方（preview_id 用于 wrangler dev）
-	"kv_namespaces": [
-		{
-			"binding": "KV_BINDING",
-			"id": "e86be365189d460bb1e9cb4581aa847d",
-		},
-	],
-	"vars": {
-		"ADMIN_TOKEN": "admin_c924a77002169ce081918fbd4a507f7e0fcd780a9010e14c",
-		"TOKEN": "c924a77002169ce081918fbd4a507f7e0fcd780a9010e14c"
-	},
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ios-location-picker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  "workers_dev": true,
+  // 首次部署前执行: npx wrangler kv namespace create LOC_KV
+  // 把输出的 id 填到下方（preview_id 用于 wrangler dev）
+  "kv_namespaces": [
+    {
+      "binding": "KV_BINDING",
+      "id": "e86be365189d460bb1e9cb4581aa847d",
+    },
+  ],
 }

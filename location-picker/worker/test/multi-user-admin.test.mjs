@@ -330,3 +330,62 @@ test("Backward compatibility with legacy env.TOKEN", async () => {
   assert.equal(typeof loc.latitude, "number");
   assert.equal(typeof loc.longitude, "number");
 });
+
+test("Map page renders currentUserName and responses include userName", async () => {
+  const env = createEnv();
+  const adminHeaders = {
+    "Content-Type": "application/json",
+    "X-Admin-Token": "secret_admin_token_123",
+  };
+
+  // Create user
+  await worker.fetch(
+    new Request("https://worker.test/api/admin/users", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ name: "Frank Sinatra", token: "frank_tok" }),
+    }),
+    env
+  );
+
+  // 1. /loc.json returns userName
+  const locRes = await worker.fetch(
+    new Request("https://worker.test/loc.json?token=frank_tok"),
+    env
+  );
+  const locData = await locRes.json();
+  assert.equal(locData.userName, "Frank Sinatra");
+
+  // 2. /set returns userName
+  const setRes = await worker.fetch(
+    new Request("https://worker.test/set?token=frank_tok", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lat: 10, lng: 20 }),
+    }),
+    env
+  );
+  const setData = await setRes.json();
+  assert.equal(setData.userName, "Frank Sinatra");
+
+  // 3. / with Accept: application/json returns userName
+  const jsonRootRes = await worker.fetch(
+    new Request("https://worker.test/?token=frank_tok", {
+      headers: { Accept: "application/json" },
+    }),
+    env
+  );
+  const jsonRootData = await jsonRootRes.json();
+  assert.equal(jsonRootData.userName, "Frank Sinatra");
+
+  // 4. GET / returns HTML with user display logic
+  const htmlRes = await worker.fetch(
+    new Request("https://worker.test/?token=frank_tok"),
+    env
+  );
+  assert.equal(htmlRes.status, 200);
+  const html = await htmlRes.text();
+  assert.match(html, /currentUserName/);
+  assert.match(html, /escapeHtml\(currentUserName\)/);
+});
+

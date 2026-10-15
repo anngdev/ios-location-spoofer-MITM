@@ -641,7 +641,10 @@ export default {
         userData.updatedAt = Date.now();
 
         await saveUserData(env, token, userData);
-        return jsonResponse(userData.location);
+        return jsonResponse({
+          ...userData.location,
+          userName: userData.name,
+        });
       } catch (err) {
         return jsonResponse({ error: err.message || "failed to save" }, 500);
       }
@@ -678,7 +681,10 @@ export default {
         userData.updatedAt = Date.now();
 
         await saveUserData(env, token, userData);
-        return jsonResponse(userData.location);
+        return jsonResponse({
+          ...userData.location,
+          userName: userData.name,
+        });
       } catch (err) {
         return jsonResponse({ error: err.message || "failed to update" }, 500);
       }
@@ -708,6 +714,16 @@ export default {
       }
       if (userData.active === false) {
         return unauthorized("user disabled: contact administrator", 403);
+      }
+
+      // 如果客户端请求 JSON（例如在 Loon/Shadowrocket 中误填了 / 而非 /loc.json）
+      const acceptHeader = request.headers.get("Accept") || "";
+      if (acceptHeader.includes("application/json") && !acceptHeader.includes("text/html")) {
+        const loc = userData.location || { ...DEFAULT };
+        return jsonResponse({
+          ...loc,
+          userName: userData.name,
+        });
       }
 
       return new Response(PAGE, {

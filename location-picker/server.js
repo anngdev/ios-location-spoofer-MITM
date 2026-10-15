@@ -2211,7 +2211,7 @@ const PAGE = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Location Picker</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
 <style>
   html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;flex-direction:column;overflow:hidden}
   .bar{padding:8px;display:flex;gap:6px;box-sizing:border-box;flex-shrink:0}
@@ -2365,11 +2365,14 @@ const PAGE = `<!doctype html>
 </div>
 </div>
 <div class="toast" id="toast"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+var currentUserName = "";
+function escapeHtml(s){
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
 
-// ---------- GCJ-02 <-> WGS-84 坐标转换（中国地图偏移修正） ----------
 var GCJ = (function(){
   var PI = Math.PI, a = 6378245.0, ee = 0.00669342162296594323;
   function outOfChina(lat,lng){return (lng<72.004||lng>137.8347)||(lat<0.8293||lat>55.8271);}
@@ -2383,7 +2386,7 @@ var GCJ = (function(){
     var r=300.0+x+2.0*y+0.1*x*x+0.1*x*y+0.1*Math.sqrt(Math.abs(x));
     r+=(20.0*Math.sin(6.0*x*PI)+20.0*Math.sin(2.0*x*PI))*2.0/3.0;
     r+=(20.0*Math.sin(x*PI)+40.0*Math.sin(x/3.0*PI))*2.0/3.0;
-    r+=(150.0*Math.sin(x/12.0*PI)+300.0*Math.sin(x/30.0*PI))*2.0/3.0;return r;
+    r+=(150.0*Math.sin(x/12.0*PI)+300*Math.sin(x/30.0*PI))*2.0/3.0;return r;
   }
   function wgs2gcj(lat,lng){
     if(outOfChina(lat,lng))return [lat,lng];
@@ -2402,16 +2405,16 @@ var GCJ = (function(){
   return {wgs2gcj:wgs2gcj, gcj2wgs:gcj2wgs};
 })();
 
-// ---------- 状态 ----------
 var map, marker;
-var WGS = {lat:0, lng:0};   // 当前“定位点(图钉)”的真值 WGS-84（预览用，未必已保存）
-var datum = "gcj";          // 当前底图坐标系：'gcj'(高德) 或 'wgs'(OSM)
-var saved = true;           // 图钉当前位置是否已保存到设备
-var enabledState = true;    // true=spoofing; false=real location restored (script passthrough)
+var WGS = {lat:0, lng:0};
+var datum = "gcj";
+var saved = true;
+var enabledState = true;  // true=spoofing; false=real location restored (script passthrough)
 
 function $(id){return document.getElementById(id);}
 function toast(t){var e=$("toast");e.textContent=t;e.classList.add("show");setTimeout(function(){e.classList.remove("show");},1800);}
 function numOrNull(id){var v=$(id).value.trim();return v===""?null:Number(v);}
+// Leaflet longitude normalization for repeated world maps.
 function wrapLng(lng){return ((((Number(lng)+180)%360)+360)%360)-180;}
 
 function setLocateBusy(busy){
@@ -2845,12 +2848,13 @@ function updateCooldownUI(){
 }
 
 function info(){
+  var userTag = currentUserName ? "　👤 <b>" + escapeHtml(currentUserName) + "</b>" : "";
   if(!enabledState){
-    $("info").innerHTML = "<b style='color:#ff9500'>Real Location Restored · Script Passthrough</b> (Toggle Location Services to apply)";
+    $("info").innerHTML = "<b style='color:#ff9500'>Real Location Restored · Script Passthrough</b>" + userTag + " (Toggle Location Services to apply)";
     return;
   }
   var tag = saved ? "Saved ✓" : "Not Saved · Click 'Save Location' to apply";
-  $("info").innerHTML = "<b style='color:"+(saved?"#34c759":"#ff9500")+"'>"+tag+"</b>　WGS-84 "+
+  $("info").innerHTML = "<b style='color:"+(saved?"#34c759":"#ff9500")+"'>"+tag+"</b>" + userTag + "　WGS-84 "+
     WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5)+"　Alt "+($("alt").value||"?")+"m";
 }
 
@@ -2939,7 +2943,12 @@ function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
   fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("Saved ✓ Takes effect in Loon/Shadowrocket within 60s"); } else { toast("Save failed "+r.status); } })
+    .then(function(r){
+      if(r.ok){
+        r.json().then(function(d){ if(d && d.userName){ currentUserName = d.userName; info(); } }).catch(function(){});
+        saved=true; enabledState=true; updateEnabledUI(); toast("Saved ✓ Takes effect in Loon/Shadowrocket within 60s");
+      } else { toast("Save failed "+r.status); }
+    })
     .catch(function(){ toast("Network error"); });
 }
 
@@ -3112,6 +3121,7 @@ function search(){
 
 function load(){
   fetch("/loc.json?token="+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+    if(d && d.userName) currentUserName = d.userName;
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);

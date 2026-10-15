@@ -163,6 +163,10 @@ export const PAGE = `<!doctype html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
+var currentUserName = "";
+function escapeHtml(s){
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
 
 var GCJ = (function(){
   var PI = Math.PI, a = 6378245.0, ee = 0.00669342162296594323;
@@ -639,12 +643,13 @@ function updateCooldownUI(){
 }
 
 function info(){
+  var userTag = currentUserName ? "　👤 <b>" + escapeHtml(currentUserName) + "</b>" : "";
   if(!enabledState){
-    $("info").innerHTML = "<b style='color:#ff9500'>Real Location Restored · Script Passthrough</b> (Toggle Location Services to apply)";
+    $("info").innerHTML = "<b style='color:#ff9500'>Real Location Restored · Script Passthrough</b>" + userTag + " (Toggle Location Services to apply)";
     return;
   }
   var tag = saved ? "Saved ✓" : "Not Saved · Click 'Save Location' to apply";
-  $("info").innerHTML = "<b style='color:"+(saved?"#34c759":"#ff9500")+"'>"+tag+"</b>　WGS-84 "+
+  $("info").innerHTML = "<b style='color:"+(saved?"#34c759":"#ff9500")+"'>"+tag+"</b>" + userTag + "　WGS-84 "+
     WGS.lat.toFixed(5)+", "+WGS.lng.toFixed(5)+"　Alt "+($("alt").value||"?")+"m";
 }
 
@@ -733,7 +738,12 @@ function commit(){
   var payload={lat:WGS.lat, lng:WGS.lng,
     altitude:numOrNull("alt"), horizontalAccuracy:numOrNull("hacc"), verticalAccuracy:numOrNull("vacc")};
   fetch("/set?token="+encodeURIComponent(token),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
-    .then(function(r){ if(r.ok){ saved=true; enabledState=true; updateEnabledUI(); toast("Saved ✓ Takes effect in Loon/Shadowrocket within 60s"); } else { toast("Save failed "+r.status); } })
+    .then(function(r){
+      if(r.ok){
+        r.json().then(function(d){ if(d && d.userName){ currentUserName = d.userName; info(); } }).catch(function(){});
+        saved=true; enabledState=true; updateEnabledUI(); toast("Saved ✓ Takes effect in Loon/Shadowrocket within 60s");
+      } else { toast("Save failed "+r.status); }
+    })
     .catch(function(){ toast("Network error"); });
 }
 
@@ -906,6 +916,7 @@ function search(){
 
 function load(){
   fetch("/loc.json?token="+encodeURIComponent(token)).then(function(r){return r.json();}).then(function(d){
+    if(d && d.userName) currentUserName = d.userName;
     WGS={lat:d.latitude, lng:d.longitude};
     saved=true;
     enabledState=(d.enabled!==false);
